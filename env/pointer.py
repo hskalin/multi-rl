@@ -3,6 +3,7 @@ from isaacgym import gymtorch
 from isaacgym.torch_utils import *
 
 from utils.torch_jit_utils import *
+import sys
 
 import torch
 import math
@@ -68,6 +69,12 @@ class Pointer:
         # generate viewer for visualisation
         if not self.args.headless:
             self.viewer = self.create_viewer()
+            self.gym.subscribe_viewer_keyboard_event(
+                self.viewer, gymapi.KEY_ESCAPE, "QUIT")
+            self.gym.subscribe_viewer_keyboard_event(
+                self.viewer, gymapi.KEY_V, "toggle_viewer_sync")
+
+        self.enable_viewer_sync = True
 
         # step simulation to initialise tensor buffers
         self.gym.prepare_sim(self.sim)
@@ -263,9 +270,48 @@ class Pointer:
 
     def render(self):
         # update viewer
-        self.gym.step_graphics(self.sim)
-        self.gym.draw_viewer(self.viewer, self.sim, True)
-        self.gym.sync_frame_time(self.sim)
+        # self.gym.step_graphics(self.sim)
+        # self.gym.draw_viewer(self.viewer, self.sim, True)
+        # self.gym.sync_frame_time(self.sim)
+        if self.gym.query_viewer_has_closed(self.viewer):
+            sys.exit()
+
+        # check for keyboard events
+        for evt in self.gym.query_viewer_action_events(self.viewer):
+            if evt.action == "QUIT" and evt.value > 0:
+                sys.exit()
+            elif evt.action == "toggle_viewer_sync" and evt.value > 0:
+                self.enable_viewer_sync = not self.enable_viewer_sync
+
+        # step graphics
+        if self.enable_viewer_sync:
+            self.gym.step_graphics(self.sim)
+
+            num_lines = 3
+            line_color = [[0,0,0], [0,0,0], [200,0,0]]
+
+            roll, pitch, yaw = get_euler_xyz(self.rb_rot[:, 0, :])
+            xa, ya, za = localToGlobalRot(roll, pitch, yaw, self.actions_tensor[:,0,0], self.actions_tensor[:,0,1], self.actions_tensor[:,0,2])
+
+            for i, envi in enumerate(self.envs):
+
+                vertices = [[self.goal_pos[i,0].item(), self.goal_pos[i,1].item(),0], 
+                            [self.goal_pos[i,0].item(), self.goal_pos[i,1].item(), self.goal_pos[i,2].item()],
+                            [self.goal_pos[i,0].item(), self.goal_pos[i,1].item(), self.goal_pos[i,2].item()], 
+                            [self.goal_pos[i,0].item()+ math.cos(self.goal_rot[i,0].item()), self.goal_pos[i,1].item()+math.sin(self.goal_rot[i,0].item()), self.goal_pos[i,2].item()],
+                            [self.rb_pos[i,0,0].item(), self.rb_pos[i,0,1].item(), self.rb_pos[i,0,2].item()],
+                            [self.rb_pos[i,0,0].item()-xa[i].item(), self.rb_pos[i,0,1].item()-ya[i].item(), self.rb_pos[i,0,2].item()-za[i].item()]]
+                
+                self.gym.add_lines(self.viewer, envi, num_lines, vertices, line_color)
+
+
+            self.gym.draw_viewer(self.viewer, self.sim, True)
+
+            self.gym.clear_lines(self.viewer)
+
+            # Wait for dt to elapse in real time.
+            # This synchronizes the physics simulation with the rendering rate.
+            self.gym.sync_frame_time(self.sim)
 
     def exit(self):
         # close the simulator in a graceful way
@@ -354,7 +400,7 @@ def compute_point_reward(x_pos, y_pos, z_pos, z_abs, roll, pitch, yaw, wx, wy, w
     rot_rew =  (0.8 * torch.exp(- B3 * wz**2) + 0.1 * torch.exp(- B3 * wy**2) + 0.1 * torch.exp(- B3 * wx**2)) 
 
     # Total
-    reward = A1 * proximity_rew + A2*angle_rew + A3*rot_rew
+    reward = A1*proximity_rew + A2*angle_rew + A3*rot_rew
 
     #print(proximity_rew[0], angle_rew[0], rot_rew[0])
     #print(reward[0])

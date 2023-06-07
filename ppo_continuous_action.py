@@ -199,7 +199,7 @@ class ExtractObsWrapper(gym.ObservationWrapper):
 
 if __name__ == "__main__":
     args = parse_args()
-    args.headless = True
+    args.headless = False
 
     run_name = f"{args.env_id}__{args.exp_name}__{args.seed}__{int(time.time())}"
     if args.track:
