@@ -67,14 +67,15 @@ class Pointer:
         self.torques_tensor = torch.zeros((self.args.num_envs, self.num_bodies, 3), device=self.args.sim_device, dtype=torch.float)
 
         # generate viewer for visualisation
-        if not self.args.headless:
-            self.viewer = self.create_viewer()
-            self.gym.subscribe_viewer_keyboard_event(
-                self.viewer, gymapi.KEY_ESCAPE, "QUIT")
-            self.gym.subscribe_viewer_keyboard_event(
-                self.viewer, gymapi.KEY_V, "toggle_viewer_sync")
+        # if not self.args.headless:
+        #     self.viewer = self.create_viewer()
+        #     self.gym.subscribe_viewer_keyboard_event(
+        #         self.viewer, gymapi.KEY_ESCAPE, "QUIT")
+        #     self.gym.subscribe_viewer_keyboard_event(
+        #         self.viewer, gymapi.KEY_V, "toggle_viewer_sync")
 
-        self.enable_viewer_sync = True
+        # self.enable_viewer_sync = False
+        self.set_viewer()
 
         # step simulation to initialise tensor buffers
         self.gym.prepare_sim(self.sim)
@@ -130,6 +131,30 @@ class Pointer:
         cam_target = gymapi.Vec3(-1, 0, 0)
         self.gym.viewer_camera_look_at(viewer, self.envs[self.args.num_envs // 2], cam_pos, cam_target)
         return viewer
+    
+    def set_viewer(self):
+        """Create the viewer."""
+
+        # todo: read from config
+        self.enable_viewer_sync = True
+        self.viewer = None
+
+        # if running with a viewer, set up keyboard shortcuts and camera
+        if self.args.headless == False:
+            # subscribe to keyboard shortcuts
+            self.viewer = self.gym.create_viewer(
+                self.sim, gymapi.CameraProperties())
+            self.gym.subscribe_viewer_keyboard_event(
+                self.viewer, gymapi.KEY_ESCAPE, "QUIT")
+            self.gym.subscribe_viewer_keyboard_event(
+                self.viewer, gymapi.KEY_V, "toggle_viewer_sync")
+
+            # set the camera position based on up axis
+            cam_pos = gymapi.Vec3(20.0, 25.0, 3.0)
+            cam_target = gymapi.Vec3(10.0, 15.0, 0.0)
+
+            self.gym.viewer_camera_look_at(
+                self.viewer, None, cam_pos, cam_target)
 
     def get_obs(self, env_ids=None):
         if env_ids is None:
@@ -312,6 +337,9 @@ class Pointer:
             # Wait for dt to elapse in real time.
             # This synchronizes the physics simulation with the rendering rate.
             self.gym.sync_frame_time(self.sim)
+
+        else:
+                self.gym.poll_viewer_events(self.viewer)
 
     def exit(self):
         # close the simulator in a graceful way
