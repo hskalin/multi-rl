@@ -2,7 +2,7 @@
 
 run
 ```
-python ppo_continuous_action.py
+python run.py
 ```
  
 ## Credits
