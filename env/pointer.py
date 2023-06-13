@@ -426,8 +426,9 @@ def compute_point_reward(
     A1 = 0.55
     B1 = (2 + torch.log(A1)) / (6**2)
 
-    proximity_rew_gauss = (1 / torch.exp(-B1)) * torch.exp(-B1 * sqr_dist)
-    proximity_rew = torch.where(sqr_dist > 1, proximity_rew_gauss, 1)
+    # proximity_rew_gauss = (1 / torch.exp(-B1)) * torch.exp(-B1 * sqr_dist)
+    # proximity_rew = torch.where(sqr_dist > 1, proximity_rew_gauss, 1)
+    proximity_rew = (torch.exp(-B1 * sqr_dist) + torch.exp(-3 * sqr_dist)) / 2
 
     # Angle reward
     A2 = 0.3
