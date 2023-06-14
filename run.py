@@ -60,6 +60,29 @@ def parse_args():
     parser.add_argument("--target-kl", type=float, default=None,
         help="the target KL divergence threshold")
     
+    # for sac
+    parser.add_argument("--buffer-size", type=int, default=int(1e6),
+        help="the replay memory buffer size")
+    parser.add_argument("--tau", type=float, default=0.005,
+        help="target smoothing coefficient (default: 0.005)")
+    parser.add_argument("--learning-starts", type=int, default=5e3,
+        help="timestep to start learning")
+    parser.add_argument("--policy-lr", type=float, default=3e-4,
+        help="the learning rate of the policy network optimizer")
+    parser.add_argument("--q-lr", type=float, default=1e-3,
+        help="the learning rate of the Q network network optimizer")
+    parser.add_argument("--policy-frequency", type=int, default=2,
+        help="the frequency of training policy (delayed)")
+    parser.add_argument("--target-network-frequency", type=int, default=1, # Denis Yarats' implementation delays this by 2.
+        help="the frequency of updates for the target nerworks")
+    parser.add_argument("--noise-clip", type=float, default=0.5,
+        help="noise clip parameter of the Target Policy Smoothing Regularization")
+    parser.add_argument("--alpha", type=float, default=0.2,
+        help="Entropy regularization coefficient.")
+    parser.add_argument("--autotune", type=lambda x:bool(strtobool(x)), default=True, nargs="?", const=True,
+        help="automatic tuning of the entropy coefficient")
+    
+
     parser.add_argument('--sim_device', type=str, default="cuda:0", help='Physics Device in PyTorch-like syntax')
     parser.add_argument('--compute_device_id', default=0, type=int)
     parser.add_argument('--graphics_device_id', type=int, default=0, help='Graphics Device ID')
