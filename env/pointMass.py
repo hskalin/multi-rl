@@ -138,13 +138,20 @@ class PointMass(VecEnv):
         y = self.obs_buf[:, 1]
         z = self.obs_buf[:, 2]
 
-        self.reward_buf[:], self.reset_buf[:] = compute_point_reward(
+        (
+            self.reward_buf[:],
+            self.reset_buf[:],
+            self.return_buf[:],
+            self.truncated_buf[:],
+        ) = compute_point_reward(
             x,
             y,
             z,
             self.reset_dist,
             self.reset_buf,
             self.progress_buf,
+            self.return_buf,
+            self.truncated_buf,
             self.max_episode_length,
         )
 
@@ -196,6 +203,8 @@ class PointMass(VecEnv):
         # clear relevant buffers
         self.reset_buf[env_ids] = 0
         self.progress_buf[env_ids] = 0
+        self.return_buf[env_ids] = 0
+        self.truncated_buf[env_ids] = 0
 
         # refresh new observation after reset
         self.get_obs()
@@ -296,9 +305,11 @@ def compute_point_reward(
     reset_dist,
     reset_buf,
     progress_buf,
+    return_buf,
+    truncated_buf,
     max_episode_length,
 ):
-    # type: (Tensor, Tensor, Tensor, float, Tensor, Tensor, float) -> Tuple[Tensor, Tensor]
+    # type: (Tensor, Tensor, Tensor, float, Tensor, Tensor, Tensor, Tensor, float) -> Tuple[Tensor, Tensor, Tensor, Tensor]
 
     # square distance from goal
     sqr_dist = (x_pos) ** 2 + (y_pos) ** 2 + (z_pos) ** 2
@@ -323,6 +334,8 @@ def compute_point_reward(
     # reward = torch.where(x_action < 0, reward - 0.1, reward)
     # reward = torch.where((torch.abs(x_pos) < 0.1) & (torch.abs(y_pos) < 0.1), reward + 1, reward)
 
+    return_buf += reward
+
     reset = torch.where(
         torch.abs(sqr_dist) > 100, torch.ones_like(reset_buf), reset_buf
     )
@@ -334,4 +347,10 @@ def compute_point_reward(
         progress_buf >= max_episode_length - 1, torch.ones_like(reset_buf), reset
     )
 
-    return reward, reset
+    truncated_buf = torch.where(
+        progress_buf >= max_episode_length - 1,
+        torch.ones_like(reset_buf),
+        truncated_buf,
+    )
+
+    return reward, reset, return_buf, truncated_buf

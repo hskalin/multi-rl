@@ -1,6 +1,7 @@
 from isaacgym import gymapi
 from isaacgym import gymtorch
 from isaacgym.torch_utils import *
+from gym import spaces
 
 from utils.torch_jit_utils import *
 import sys
@@ -42,13 +43,22 @@ class VecEnv:
             (self.args.num_envs, self.num_obs), device=self.args.sim_device
         )
         self.reward_buf = torch.zeros(self.args.num_envs, device=self.args.sim_device)
+        self.return_buf = torch.zeros(self.args.num_envs, device=self.args.sim_device)
+        self.truncated_buf = torch.zeros(
+            self.args.num_envs, device=self.args.sim_device
+        )
         self.reset_buf = torch.ones(
             self.args.num_envs, device=self.args.sim_device, dtype=torch.long
         )
         self.progress_buf = torch.zeros(
             self.args.num_envs, device=self.args.sim_device, dtype=torch.long
         )
-
+        self.obs_space = spaces.Box(
+            np.ones(self.num_obs) * -np.Inf, np.ones(self.num_obs) * np.Inf
+        )
+        self.act_space = spaces.Box(
+            np.ones(self.num_act) * -1.0, np.ones(self.num_act) * 1.0
+        )
         # generate viewer for visualisation
         self.set_viewer()
 

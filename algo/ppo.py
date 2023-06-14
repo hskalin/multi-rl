@@ -172,33 +172,33 @@ class PPO_agent:
                 # next_obs, rewards[step], next_done, info = envs.step(action)
 
                 self.env.step(action)
-                next_obs, self.rewards[step], next_done = (
+                next_obs, self.rewards[step], next_done, episodeLen, episodeRet = (
                     self.env.obs_buf.clone(),
                     self.env.reward_buf.clone(),
                     self.env.reset_buf.clone(),
+                    self.env.progress_buf.clone(),
+                    self.env.return_buf.clone(),
                 )
                 self.env.reset()
 
                 if 0 <= step <= 2:
-                    for idx, d in enumerate(next_done):
-                        if d:
-                            # episodic_return = info["r"][idx].item()
-                            episodic_return = torch.mean(
-                                self.rewards[step].float()
-                            ).item()
-                            # episodic_return = rewards[step][0].item()
-                            print(
-                                f"global_step={global_step}, step_return={episodic_return}"
-                            )
-                            self.writer.add_scalar(
-                                "charts/episodic_return", episodic_return, global_step
-                            )
-                            # writer.add_scalar("charts/episodic_length", info["l"][idx], global_step)
-                            # if "consecutive_successes" in info:  # ShadowHand and AllegroHand metric
-                            #     writer.add_scalar(
-                            #         "charts/consecutive_successes", info["consecutive_successes"].item(), global_step
-                            #     )
-                            break
+                    done_ids = next_done.nonzero(as_tuple=False).squeeze(-1)
+                    if done_ids.size()[0]:
+                        episodic_return = torch.mean(
+                            episodeRet[done_ids].float()
+                        ).item()
+                        episodic_length = torch.mean(
+                            episodeLen[done_ids].float()
+                        ).item()
+                        print(
+                            f"global_step={global_step}, episodic_return={episodic_return}"
+                        )
+                        self.writer.add_scalar(
+                            "charts/episodic_return", episodic_return, global_step
+                        )
+                        self.writer.add_scalar(
+                            "charts/episodic_length", episodic_length, global_step
+                        )
 
             # bootstrap value if not done
             with torch.no_grad():

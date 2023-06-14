@@ -86,7 +86,6 @@ def parse_args():
     parser.add_argument('--sim_device', type=str, default="cuda:0", help='Physics Device in PyTorch-like syntax')
     parser.add_argument('--compute_device_id', default=0, type=int)
     parser.add_argument('--graphics_device_id', type=int, default=0, help='Graphics Device ID')
-    #parser.add_argument('--num_envs', default=512, type=int)
     parser.add_argument("--headless", type=lambda x: bool(strtobool(x)), default=False, nargs="?", const=True,
         help="whether to show the simulation while training. Press 'v' to play/pause")
 
@@ -103,6 +102,7 @@ def parse_args():
 
 
 args = parse_args()
+
 policy = algo_map[args.exp_name](args)
 
 policy.train()
