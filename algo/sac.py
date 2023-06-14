@@ -6,12 +6,11 @@ import time
 from distutils.util import strtobool
 
 import gym
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from stable_baselines3.common.buffers import ReplayBuffer
+from utils.buffers import ReplayBuffer
 from torch.utils.tensorboard import SummaryWriter
 
 
@@ -121,7 +120,6 @@ class SAC_agent:
 
         # TRY NOT TO MODIFY: seeding
         random.seed(args.seed)
-        np.random.seed(args.seed)
         torch.manual_seed(args.seed)
         torch.backends.cudnn.deterministic = args.torch_deterministic
 
@@ -159,11 +157,9 @@ class SAC_agent:
             self.env.obs_space,
             self.env.act_space,
             self.device,
+            n_envs=self.args.num_envs,
             handle_timeout_termination=True,
         )
-
-        # TODO hack
-        self.rb.handle_timeout_termination = False
 
     def train(self):
         start_time = time.time()
@@ -189,50 +185,45 @@ class SAC_agent:
 
             # TRY NOT TO MODIFY: execute the game and log data.
             self.env.step(actions)
-            next_obs, rewards, dones = (
+            next_obs, rewards, dones, episodeLen, episodeRet, truncated = (
                 self.env.obs_buf.clone(),
                 self.env.reward_buf.clone(),
                 self.env.reset_buf.clone(),
+                self.env.progress_buf.clone(),
+                self.env.return_buf.clone(),
+                self.env.truncated_buf.clone(),
             )
             self.env.reset()
 
             # next_obs, rewards, dones, infos = self.env.step(actions)
 
             # TRY NOT TO MODIFY: record rewards for plotting purposes
-            for idx, d in enumerate(dones):
-                if d:
-                    # episodic_return = info["r"][idx].item()
-                    episodic_return = torch.mean(rewards.float()).item()
-                    # episodic_return = rewards[step][0].item()
-                    print(f"global_step={global_step}, step_return={episodic_return}")
-                    self.writer.add_scalar(
-                        "charts/episodic_return", episodic_return, global_step
-                    )
-                    break
-
-            # for info in infos:
-            #     if "episode" in info.keys():
-            #         print(
-            #             f"global_step={global_step}, episodic_return={info['episode']['r']}"
-            #         )
-            #         self.writer.add_scalar(
-            #             "charts/episodic_return", info["episode"]["r"], global_step
-            #         )
-            #         self.writer.add_scalar(
-            #             "charts/episodic_length", info["episode"]["l"], global_step
-            #         )
-            #         break
+            # only checking if first env is done to save computation
+            if dones[0]:
+                done_ids = dones.nonzero(as_tuple=False).squeeze(-1)
+                # taking mean over all envs that are done at the
+                # current timestep
+                episodic_return = torch.mean(episodeRet[done_ids].float()).item()
+                episodic_length = torch.mean(episodeLen[done_ids].float()).item()
+                print(f"global_step={global_step}, episodic_return={episodic_return}")
+                self.writer.add_scalar(
+                    "charts/episodic_return", episodic_return, global_step
+                )
+                self.writer.add_scalar(
+                    "charts/episodic_length", episodic_length, global_step
+                )
 
             # TRY NOT TO MODIFY: save data to reply buffer; handle `terminal_observation`
             real_next_obs = next_obs.clone()
 
-            # TODO hack
+            # TODO I think we do not need this since we are always recording
+            # obs after the step
+
             # for idx, d in enumerate(dones):
             #     if d:
             #         real_next_obs[idx] = infos[idx]["terminal_observation"]
 
-            infos = list(dict())
-            self.rb.add(obs, real_next_obs, actions, rewards, dones, infos)
+            self.rb.add(obs, real_next_obs, actions, rewards, dones, truncated)
 
             # TRY NOT TO MODIFY: CRUCIAL step easy to overlook
             obs = next_obs
@@ -254,12 +245,18 @@ class SAC_agent:
                         torch.min(qf1_next_target, qf2_next_target)
                         - self.alpha * next_state_log_pi
                     )
-                    next_q_value = data.rewards.flatten() + (
-                        1 - data.dones.flatten()
-                    ) * self.args.gamma * (min_qf_next_target).view(-1)
+
+                    # next_q_value = data.rewards.flatten() + (
+                    #     1 - data.dones.flatten()
+                    # ) * self.args.gamma * (min_qf_next_target).view(-1)
+
+                print(data.observations.shape)
+                print(data.actions.shape)
+                exit()
 
                 qf1_a_values = self.qf1(data.observations, data.actions).view(-1)
                 qf2_a_values = self.qf2(data.observations, data.actions).view(-1)
+
                 qf1_loss = F.mse_loss(qf1_a_values, next_q_value)
                 qf2_loss = F.mse_loss(qf2_a_values, next_q_value)
                 qf_loss = qf1_loss + qf2_loss

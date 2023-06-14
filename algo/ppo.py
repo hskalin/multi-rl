@@ -184,6 +184,8 @@ class PPO_agent:
                 if 0 <= step <= 2:
                     done_ids = next_done.nonzero(as_tuple=False).squeeze(-1)
                     if done_ids.size()[0]:
+                        # taking mean over all envs that are done at the
+                        # current timestep
                         episodic_return = torch.mean(
                             episodeRet[done_ids].float()
                         ).item()

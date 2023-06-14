@@ -61,7 +61,7 @@ def parse_args():
         help="the target KL divergence threshold")
     
     # for sac
-    parser.add_argument("--buffer-size", type=int, default=int(1e6),
+    parser.add_argument("--buffer-size", type=int, default=int(2e3),
         help="the replay memory buffer size")
     parser.add_argument("--tau", type=float, default=0.005,
         help="target smoothing coefficient (default: 0.005)")
