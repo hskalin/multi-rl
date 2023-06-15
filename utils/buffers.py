@@ -315,12 +315,10 @@ class ReplayBuffer(BaseBuffer):
     ) -> ReplayBufferSamples:
         if self.optimize_memory_usage:
             next_obs = self._normalize_obs(
-                self.observations[(batch_inds + 1) % self.buffer_size, 0, :], env
+                self.observations[(batch_inds + 1) % self.buffer_size, :], env
             )
         else:
-            next_obs = self._normalize_obs(
-                self.next_observations[batch_inds, 0, :], env
-            )
+            next_obs = self._normalize_obs(self.next_observations[batch_inds, :], env)
 
         data = (
             self.swap_and_flatten(
@@ -333,4 +331,5 @@ class ReplayBuffer(BaseBuffer):
             self.dones[batch_inds] * (1 - self.timeouts[batch_inds]),
             self._normalize_reward(self.rewards[batch_inds], env),
         )
+
         return ReplayBufferSamples(*tuple(data))

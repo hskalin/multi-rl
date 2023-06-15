@@ -2,11 +2,12 @@ from isaacgym import gymapi
 from isaacgym import gymtorch
 from isaacgym.torch_utils import *
 
-from multi_rl.env.base.vec_env import VecEnv
+from env.base.vec_env import VecEnv
 
 from utils.torch_jit_utils import *
 
 import torch
+import os
 
 
 class PointMass(VecEnv):
@@ -80,7 +81,9 @@ class PointMass(VecEnv):
         num_per_row = int(np.sqrt(self.args.num_envs))
 
         # add pointer asset
-        asset_root = "./assets"
+        asset_root = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "../assets"
+        )
         asset_file = "urdf/ball.urdf"
         asset_options = gymapi.AssetOptions()
         point_asset = self.gym.load_asset(

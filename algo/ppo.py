@@ -141,7 +141,7 @@ class PPO_agent:
         start_time = time.time()
 
         # next_obs = envs.reset()
-        next_obs = self.env.obs_buf.clone()
+        next_obs = self.env.obs_buf
 
         next_done = torch.zeros(self.args.num_envs, dtype=torch.float).to(self.device)
         num_updates = self.args.total_timesteps // self.args.batch_size
@@ -173,8 +173,8 @@ class PPO_agent:
 
                 self.env.step(action)
                 next_obs, self.rewards[step], next_done, episodeLen, episodeRet = (
-                    self.env.obs_buf.clone(),
-                    self.env.reward_buf.clone(),
+                    self.env.obs_buf,
+                    self.env.reward_buf,
                     self.env.reset_buf.clone(),
                     self.env.progress_buf.clone(),
                     self.env.return_buf.clone(),

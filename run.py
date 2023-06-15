@@ -7,7 +7,7 @@ from algo import algo_map
 def parse_args():
     # fmt: off
     parser = argparse.ArgumentParser()
-    parser.add_argument("--exp-name", type=str, default="PPO",
+    parser.add_argument("--exp-name", type=str, default="SAC",
         help="the name of this experiment")
     parser.add_argument("--seed", type=int, default=1,
         help="seed of the experiment")
@@ -61,11 +61,11 @@ def parse_args():
         help="the target KL divergence threshold")
     
     # for sac
-    parser.add_argument("--buffer-size", type=int, default=int(2e3),
+    parser.add_argument("--buffer-size", type=int, default=int(2e4),
         help="the replay memory buffer size")
     parser.add_argument("--tau", type=float, default=0.005,
         help="target smoothing coefficient (default: 0.005)")
-    parser.add_argument("--learning-starts", type=int, default=5e3,
+    parser.add_argument("--learning-starts", type=int, default=2e3,
         help="timestep to start learning")
     parser.add_argument("--policy-lr", type=float, default=3e-4,
         help="the learning rate of the policy network optimizer")

@@ -16,6 +16,9 @@ from torch.utils.tensorboard import SummaryWriter
 
 from env import env_map
 
+torch.cuda.empty_cache()
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:2048"
+
 
 # ALGO LOGIC: initialize agent here:
 class SoftQNetwork(nn.Module):
@@ -214,7 +217,7 @@ class SAC_agent:
                 )
 
             # TRY NOT TO MODIFY: save data to reply buffer; handle `terminal_observation`
-            real_next_obs = next_obs.clone()
+            real_next_obs = next_obs
 
             # TODO I think we do not need this since we are always recording
             # obs after the step
@@ -226,12 +229,12 @@ class SAC_agent:
             self.rb.add(obs, real_next_obs, actions, rewards, dones, truncated)
 
             # TRY NOT TO MODIFY: CRUCIAL step easy to overlook
-            obs = next_obs
+            obs = next_obs.clone()
 
             # ALGO LOGIC: training.
             if global_step > self.args.learning_starts:
-                data = self.rb.sample(self.args.batch_size)
                 with torch.no_grad():
+                    data = self.rb.sample(self.args.batch_size)
                     next_state_actions, next_state_log_pi, _ = self.actor.get_action(
                         data.next_observations
                     )
@@ -246,13 +249,9 @@ class SAC_agent:
                         - self.alpha * next_state_log_pi
                     )
 
-                    # next_q_value = data.rewards.flatten() + (
-                    #     1 - data.dones.flatten()
-                    # ) * self.args.gamma * (min_qf_next_target).view(-1)
-
-                print(data.observations.shape)
-                print(data.actions.shape)
-                exit()
+                    next_q_value = data.rewards.flatten() + (
+                        1 - data.dones.flatten()
+                    ) * self.args.gamma * (min_qf_next_target).view(-1)
 
                 qf1_a_values = self.qf1(data.observations, data.actions).view(-1)
                 qf2_a_values = self.qf2(data.observations, data.actions).view(-1)
