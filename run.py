@@ -31,9 +31,9 @@ def parse_args():
         help="total timesteps of the experiments")
     parser.add_argument("--learning-rate", type=float, default=0.0026,
         help="the learning rate of the optimizer")
-    parser.add_argument("--num-envs", type=int, default=512,
+    parser.add_argument("--num-envs", type=int, default=256,
         help="the number of parallel game environments")
-    parser.add_argument("--num-steps", type=int, default=16,
+    parser.add_argument("--num-steps", type=int, default=8,
         help="the number of steps to run in each environment per policy rollout")
     parser.add_argument("--anneal-lr", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
         help="Toggle learning rate annealing for policy and value networks")
@@ -61,7 +61,7 @@ def parse_args():
         help="the target KL divergence threshold")
     
     # for sac
-    parser.add_argument("--buffer-size", type=int, default=int(2e4),
+    parser.add_argument("--buffer-size", type=int, default=int(1e6),
         help="the replay memory buffer size")
     parser.add_argument("--tau", type=float, default=0.005,
         help="target smoothing coefficient (default: 0.005)")
@@ -103,6 +103,53 @@ def parse_args():
 
 args = parse_args()
 
-policy = algo_map[args.exp_name](args)
+SAC_params = {
+    "algo": {"name": "sac"},
+    "config": {
+        "actor_lr": 0.0005,
+        "alpha_lr": 0.005,
+        "batch_size": 4096,
+        "critic_lr": 0.0005,
+        "critic_tau": 0.005,
+        "env_name": "rlgpu",
+        "full_experiment_name": "PointMass",
+        "gamma": 0.99,
+        "init_alpha": 1.0,
+        "learnable_temperature": True,
+        "max_epochs": 20000,
+        "multi_gpu": False,
+        "name": "PointMass",
+        "normalize_input": True,
+        "num_actors": args.num_envs,
+        "num_seed_steps": 5,
+        "num_steps_per_episode": 8,
+        "num_warmup_steps": 10,
+        "replay_buffer_size": 1000000,
+        "reward_shaper": {"scale_value": 1.0},
+        "save_best_after": 100,
+        "save_frequency": 1000,
+    },
+    "load_checkpoint": False,
+    "load_path": "None",
+    "model": {"name": "soft_actor_critic"},
+    "network": {
+        "log_std_bounds": [-5, 2],
+        "mlp": {
+            "activation": "relu",
+            "initializer": {"name": "default"},
+            "units": [256, 128],
+        },
+        "name": "soft_actor_critic",
+        "separate": True,
+        "space": {"continuous": None},
+    },
+    "seed": 42,
+}
+
+
+if args.exp_name == "SAC":
+    policy = algo_map[args.exp_name](args, SAC_params)
+else:
+    policy = algo_map[args.exp_name](args)
 
 policy.train()
