@@ -181,26 +181,20 @@ class PPO_agent:
                 )
                 self.env.reset()
 
-                if 0 <= step <= 2:
-                    done_ids = next_done.nonzero(as_tuple=False).squeeze(-1)
-                    if done_ids.size()[0]:
-                        # taking mean over all envs that are done at the
-                        # current timestep
-                        episodic_return = torch.mean(
-                            episodeRet[done_ids].float()
-                        ).item()
-                        episodic_length = torch.mean(
-                            episodeLen[done_ids].float()
-                        ).item()
-                        print(
-                            f"global_step={global_step}, episodic_return={episodic_return}"
-                        )
-                        self.writer.add_scalar(
-                            "charts/episodic_return", episodic_return, global_step
-                        )
-                        self.writer.add_scalar(
-                            "charts/episodic_length", episodic_length, global_step
-                        )
+                # if 0 <= step <= 2:
+                done_ids = next_done.nonzero(as_tuple=False).squeeze(-1)
+                if done_ids.size()[0]:
+                    # taking mean over all envs that are done at the
+                    # current timestep
+                    episodic_return = torch.mean(episodeRet[done_ids].float()).item()
+                    episodic_length = torch.mean(episodeLen[done_ids].float()).item()
+                    print(
+                        f"global_step={global_step}, episodic_return={episodic_return}"
+                    )
+                    self.writer.add_scalar("rewards/step", episodic_return, global_step)
+                    self.writer.add_scalar(
+                        "episode_lengths/step", episodic_length, global_step
+                    )
 
             # bootstrap value if not done
             with torch.no_grad():

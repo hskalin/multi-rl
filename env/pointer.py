@@ -18,7 +18,7 @@ class Pointer(VecEnv):
         self.num_act = 4  # force applied on the pole (-1 to 1)
         self.reset_dist = 10.0  # when to reset
         self.max_push_effort = 5.0  # the range of force applied to the pointer
-        self.max_episode_length = 500  # maximum episode length
+        self.max_episode_length = 1000  # maximum episode length
 
         self.ball_height = 4
         self.goal_lim = 4
@@ -430,35 +430,80 @@ def compute_point_reward(
 ):
     # type: (Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, float, Tensor, Tensor,Tensor, Tensor,float) -> Tuple[Tensor, Tensor, Tensor, Tensor]
 
-    # square distance from goal
+    # # square distance from goal
+    # sqr_dist = (x_pos) ** 2 + (y_pos) ** 2 + (z_pos) ** 2
+
+    # # Proximity reward
+    # A1 = 0.55
+    # B1 = (2 + torch.log(A1)) / (6**2)
+
+    # # proximity_rew_gauss = (1 / torch.exp(-B1)) * torch.exp(-B1 * sqr_dist)
+    # # proximity_rew = torch.where(sqr_dist > 1, proximity_rew_gauss, 1)
+    # proximity_rew = (torch.exp(-B1 * sqr_dist) + torch.exp(-3 * sqr_dist)) / 2
+
+    # # Angle reward
+    # A2 = 0.3
+    # B2 = 0.5
+
+    # angle_rew = proximity_rew * torch.exp(-B2 * (pitch**2 + roll**2 + yaw**2))
+
+    # # Rotation reward
+    # A3 = 0.15
+    # B3 = 0.01
+
+    # rot_rew = (
+    #     0.8 * torch.exp(-B3 * wz**2)
+    #     + 0.1 * torch.exp(-B3 * wy**2)
+    #     + 0.1 * torch.exp(-B3 * wx**2)
+    # )
+
+    # # Total
+    # reward = A1 * proximity_rew + A2 * angle_rew + A3 * rot_rew
+
+    ###################################################################################
+
     sqr_dist = (x_pos) ** 2 + (y_pos) ** 2 + (z_pos) ** 2
 
     # Proximity reward
     A1 = 0.55
     B1 = (2 + torch.log(A1)) / (6**2)
 
-    # proximity_rew_gauss = (1 / torch.exp(-B1)) * torch.exp(-B1 * sqr_dist)
-    # proximity_rew = torch.where(sqr_dist > 1, proximity_rew_gauss, 1)
-    proximity_rew = (torch.exp(-B1 * sqr_dist) + torch.exp(-3 * sqr_dist)) / 2
+    proximity_rew_gauss = (A1 / torch.exp(-B1)) * torch.exp(-B1 * sqr_dist)
+    proximity_rew = torch.where(sqr_dist > 1, proximity_rew_gauss, A1)
 
     # Angle reward
-    A2 = 0.3
-    B2 = 0.5
+    # angle_rew = - (torch.abs(yaw) + torch.abs(pitch) + torch.abs(roll)) * proximity_rew / (A1 * 2)
+    B4 = 0.5
+    A4 = 0.3
 
-    angle_rew = proximity_rew * torch.exp(-B2 * (pitch**2 + roll**2 + yaw**2))
+    angle_rew = proximity_rew * torch.exp(-B4 * (pitch**2 + roll**2 + yaw**2))
+    # angle = torch.acos(2*(0*qx + 0*qy + 0*qz + 1*qw)**2 - 1)
+    # angle_rew = torch.exp(- B4 * angle)
+
+    # print(angle_rew[0])
 
     # Rotation reward
-    A3 = 0.15
-    B3 = 0.01
+    WZ_LIM = 30
 
+    A2 = 0.15
+    # B2 = torch.log(10/(A2) + 1)/WZ_LIM**2
+    B2 = 0.01
+
+    # rot_rew = - (torch.exp(B2 * wz**2) - 1) - A2 * (torch.exp(B2 * wy**2) - 1) - A2 * (torch.exp(B2 * wx**2) - 1)
     rot_rew = (
-        0.8 * torch.exp(-B3 * wz**2)
-        + 0.1 * torch.exp(-B3 * wy**2)
-        + 0.1 * torch.exp(-B3 * wx**2)
+        0.8 * torch.exp(-B2 * wz**2)
+        + 0.1 * torch.exp(-B2 * wy**2)
+        + 0.1 * torch.exp(-B2 * wx**2)
     )
 
+    # Thrust Reward
+    A3 = 0.00
+    B3 = 0.2
+
+    # thrust_rew = -(torch.exp(-B3 * x_action) - 1)
+
     # Total
-    reward = A1 * proximity_rew + A2 * angle_rew + A3 * rot_rew
+    reward = proximity_rew + A4 * angle_rew + A2 * rot_rew
 
     # print(proximity_rew[0], angle_rew[0], rot_rew[0])
     # print(reward[0])

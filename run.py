@@ -1,5 +1,11 @@
+import isaacgym
 import argparse
 from distutils.util import strtobool
+
+import torch
+import random
+import numpy as np
+
 
 from algo import algo_map
 
@@ -9,7 +15,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--exp-name", type=str, default="SAC",
         help="the name of this experiment")
-    parser.add_argument("--seed", type=int, default=1,
+    parser.add_argument("--seed", type=int, default=42,
         help="seed of the experiment")
     parser.add_argument("--torch-deterministic", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
         help="if toggled, `torch.backends.cudnn.deterministic=False`")
@@ -31,7 +37,7 @@ def parse_args():
         help="total timesteps of the experiments")
     parser.add_argument("--learning-rate", type=float, default=0.0026,
         help="the learning rate of the optimizer")
-    parser.add_argument("--num-envs", type=int, default=256,
+    parser.add_argument("--num-envs", type=int, default=1024,
         help="the number of parallel game environments")
     parser.add_argument("--num-steps", type=int, default=8,
         help="the number of steps to run in each environment per policy rollout")
@@ -112,7 +118,7 @@ SAC_params = {
         "critic_lr": 0.0005,
         "critic_tau": 0.005,
         "env_name": "rlgpu",
-        "full_experiment_name": "PointMass",
+        "full_experiment_name": args.env_id,
         "gamma": 0.99,
         "init_alpha": 1.0,
         "learnable_temperature": True,
@@ -137,15 +143,19 @@ SAC_params = {
         "mlp": {
             "activation": "relu",
             "initializer": {"name": "default"},
-            "units": [256, 128],
+            "units": [256, 256],
         },
         "name": "soft_actor_critic",
         "separate": True,
         "space": {"continuous": None},
     },
-    "seed": 42,
+    "seed": args.seed,
 }
 
+# for reproducibility
+torch.manual_seed(args.seed)
+np.random.seed(args.seed)
+random.seed(args.seed)
 
 if args.exp_name == "SAC":
     policy = algo_map[args.exp_name](args, SAC_params)

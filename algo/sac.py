@@ -1,14 +1,7 @@
-from rl_games.algos_torch import torch_ext
-
-from rl_games.common import vecenv
-from rl_games.common import schedulers
-from rl_games.common import experience
-from rl_games.common.a2c_common import print_statistics
-
-from rl_games.interfaces.base_algorithm import BaseAlgorithm
+from utils import torch_ext
+from utils.vec_buffer import VectorizedReplayBuffer
 from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
-from rl_games.algos_torch import model_builder
 from torch import optim
 import torch
 from torch import nn
@@ -17,10 +10,47 @@ import numpy as np
 import time
 import os
 
+from algo import sac_model
+
 from env import env_map
 
 
-class SAC_Agent(BaseAlgorithm):
+def print_statistics(
+    print_stats,
+    curr_frames,
+    step_time,
+    step_inference_time,
+    total_time,
+    epoch_num,
+    max_epochs,
+    frame,
+    max_frames,
+):
+    if print_stats:
+        step_time = max(step_time, 1e-9)
+        fps_step = curr_frames / step_time
+        fps_step_inference = curr_frames / step_inference_time
+        fps_total = curr_frames / total_time
+
+        if max_epochs == -1 and max_frames == -1:
+            print(
+                f"fps step: {fps_step:.0f} fps step and policy inference: {fps_step_inference:.0f} fps total: {fps_total:.0f} epoch: {epoch_num:.0f} frames: {frame:.0f}"
+            )
+        elif max_epochs == -1:
+            print(
+                f"fps step: {fps_step:.0f} fps step and policy inference: {fps_step_inference:.0f} fps total: {fps_total:.0f} epoch: {epoch_num:.0f} frames: {frame:.0f}/{max_frames:.0f}"
+            )
+        elif max_frames == -1:
+            print(
+                f"fps step: {fps_step:.0f} fps step and policy inference: {fps_step_inference:.0f} fps total: {fps_total:.0f} epoch: {epoch_num:.0f}/{max_epochs:.0f} frames: {frame:.0f}"
+            )
+        else:
+            print(
+                f"fps step: {fps_step:.0f} fps step and policy inference: {fps_step_inference:.0f} fps total: {fps_total:.0f} epoch: {epoch_num:.0f}/{max_epochs:.0f} frames: {frame:.0f}/{max_frames:.0f}"
+            )
+
+
+class SAC_Agent:
     def __init__(self, args, params):
         base_name = "run"
 
@@ -90,7 +120,7 @@ class SAC_Agent(BaseAlgorithm):
             betas=self.config.get("alphas_betas", [0.9, 0.999]),
         )
 
-        self.replay_buffer = experience.VectorizedReplayBuffer(
+        self.replay_buffer = VectorizedReplayBuffer(
             self.env_info["observation_space"].shape,
             self.env_info["action_space"].shape,
             self.replay_buffer_size,
@@ -112,8 +142,10 @@ class SAC_Agent(BaseAlgorithm):
         )
 
     def load_networks(self, params):
-        builder = model_builder.ModelBuilder()
-        self.config["network"] = builder.load(params)
+        # builder = model_builder.ModelBuilder()
+        # self.config["network"] = builder.load(params)
+
+        self.config["network"] = sac_model.ModelSACContinuous(params=params["network"])
 
     def base_init(self, base_name, args, config):
         self.env_config = config.get("env_config", {})
@@ -447,21 +479,16 @@ class SAC_Agent(BaseAlgorithm):
         self.vec_env.reset()
 
         self.step += self.num_actors
-        if self.is_tensor_obses:
-            return (
-                self.obs_to_tensors(obs),
-                rewards.to(self._device),
-                dones.to(self._device),
-                episodeLen.to(self._device),
-                episodeRet.to(self._device),
-            )
-        else:
-            return (
-                torch.from_numpy(obs).to(self._device),
-                torch.from_numpy(rewards).to(self._device),
-                torch.from_numpy(dones).to(self._device),
-                infos,
-            )
+
+        assert self.is_tensor_obses
+
+        return (
+            self.obs_to_tensors(obs),
+            rewards.to(self._device),
+            dones.to(self._device),
+            episodeLen.to(self._device),
+            episodeRet.to(self._device),
+        )
 
     def env_reset(self):
         with torch.no_grad():
