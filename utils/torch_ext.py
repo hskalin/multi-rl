@@ -4,44 +4,46 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.optim.optimizer import Optimizer
+from torch import distributions as pyd
 import math
 import time
 
 numpy_to_torch_dtype_dict = {
-    np.dtype('bool')       : torch.bool,
-    np.dtype('uint8')      : torch.uint8,
-    np.dtype('int8')       : torch.int8,
-    np.dtype('int16')      : torch.int16,
-    np.dtype('int32')      : torch.int32,
-    np.dtype('int64')      : torch.int64,
-    np.dtype('float16')    : torch.float16,
-    np.dtype('float64')    : torch.float32,
-    np.dtype('float32')    : torch.float32,
-    #np.dtype('float64')    : torch.float64,
-    np.dtype('complex64')  : torch.complex64,
-    np.dtype('complex128') : torch.complex128,
+    np.dtype("bool"): torch.bool,
+    np.dtype("uint8"): torch.uint8,
+    np.dtype("int8"): torch.int8,
+    np.dtype("int16"): torch.int16,
+    np.dtype("int32"): torch.int32,
+    np.dtype("int64"): torch.int64,
+    np.dtype("float16"): torch.float16,
+    np.dtype("float64"): torch.float32,
+    np.dtype("float32"): torch.float32,
+    # np.dtype('float64')    : torch.float64,
+    np.dtype("complex64"): torch.complex64,
+    np.dtype("complex128"): torch.complex128,
 }
 
-torch_to_numpy_dtype_dict = {value : key for (key, value) in numpy_to_torch_dtype_dict.items()}
+torch_to_numpy_dtype_dict = {
+    value: key for (key, value) in numpy_to_torch_dtype_dict.items()
+}
+
 
 def policy_kl(p0_mu, p0_sigma, p1_mu, p1_sigma, reduce=True):
-    c1 = torch.log(p1_sigma/p0_sigma + 1e-5)
-    c2 = (p0_sigma**2 + (p1_mu - p0_mu)**2)/(2.0 * (p1_sigma**2 + 1e-5))
+    c1 = torch.log(p1_sigma / p0_sigma + 1e-5)
+    c2 = (p0_sigma**2 + (p1_mu - p0_mu) ** 2) / (2.0 * (p1_sigma**2 + 1e-5))
     c3 = -1.0 / 2.0
     kl = c1 + c2 + c3
-    kl = kl.sum(dim=-1) # returning mean between all steps of sum between all actions
+    kl = kl.sum(dim=-1)  # returning mean between all steps of sum between all actions
     if reduce:
         return kl.mean()
     else:
         return kl
 
-def mean_mask(input, mask, sum_mask):
-    return (input * rnn_masks).sum() / sum_mask
 
 def shape_whc_to_cwh(shape):
     if len(shape) == 3:
         return (shape[2], shape[0], shape[1])
-    
+
     return shape
 
 
@@ -50,6 +52,7 @@ def shape_cwh_to_whc(shape):
         return (shape[1], shape[2], shape[0])
 
     return shape
+
 
 def safe_filesystem_op(func, *args, **kwargs):
     """
@@ -61,27 +64,36 @@ def safe_filesystem_op(func, *args, **kwargs):
         try:
             return func(*args, **kwargs)
         except Exception as exc:
-            print(f'Exception {exc} when trying to execute {func} with args:{args} and kwargs:{kwargs}...')
-            wait_sec = 2 ** attempt
-            print(f'Waiting {wait_sec} before trying again...')
+            print(
+                f"Exception {exc} when trying to execute {func} with args:{args} and kwargs:{kwargs}..."
+            )
+            wait_sec = 2**attempt
+            print(f"Waiting {wait_sec} before trying again...")
             time.sleep(wait_sec)
 
-    raise RuntimeError(f'Could not execute {func}, give up after {num_attempts} attempts...')
+    raise RuntimeError(
+        f"Could not execute {func}, give up after {num_attempts} attempts..."
+    )
+
 
 def safe_save(state, filename):
     return safe_filesystem_op(torch.save, state, filename)
 
+
 def safe_load(filename):
     return safe_filesystem_op(torch.load, filename)
 
+
 def save_checkpoint(filename, state):
-    print("=> saving checkpoint '{}'".format(filename + '.pth'))
-    safe_save(state, filename + '.pth')
+    print("=> saving checkpoint '{}'".format(filename + ".pth"))
+    safe_save(state, filename + ".pth")
+
 
 def load_checkpoint(filename):
     print("=> loading checkpoint '{}'".format(filename))
     state = safe_load(filename)
     return state
+
 
 def parameterized_truncated_normal(uniform, mu, sigma, a, b):
     normal = torch.distributions.normal.Normal(0, 1, validate_args=False)
@@ -90,7 +102,10 @@ def parameterized_truncated_normal(uniform, mu, sigma, a, b):
     beta = (b - mu) / sigma
 
     alpha_normal_cdf = normal.cdf(torch.from_numpy(np.array(alpha)))
-    p = alpha_normal_cdf + (normal.cdf(torch.from_numpy(np.array(beta))) - alpha_normal_cdf) * uniform
+    p = (
+        alpha_normal_cdf
+        + (normal.cdf(torch.from_numpy(np.array(beta))) - alpha_normal_cdf) * uniform
+    )
 
     p = p.numpy()
     one = np.array(1, dtype=p.dtype)
@@ -101,13 +116,18 @@ def parameterized_truncated_normal(uniform, mu, sigma, a, b):
 
     return x
 
+
 def truncated_normal(uniform, mu=0.0, sigma=1.0, a=-2, b=2):
     return parameterized_truncated_normal(uniform, mu, sigma, a, b)
 
-def sample_truncated_normal(shape=(), mu=0.0, sigma=1.0, a=-2, b=2):
-    return truncated_normal(torch.from_numpy(np.random.uniform(0, 1, shape)), mu, sigma, a, b)
 
-def variance_scaling_initializer(tensor, mode='fan_in',scale = 2.0):
+def sample_truncated_normal(shape=(), mu=0.0, sigma=1.0, a=-2, b=2):
+    return truncated_normal(
+        torch.from_numpy(np.random.uniform(0, 1, shape)), mu, sigma, a, b
+    )
+
+
+def variance_scaling_initializer(tensor, mode="fan_in", scale=2.0):
     fan = torch.nn.init._calculate_correct_fan(tensor, mode)
     print(fan, scale)
     sigma = np.sqrt(scale / fan)
@@ -116,215 +136,16 @@ def variance_scaling_initializer(tensor, mode='fan_in',scale = 2.0):
         return tensor
 
 
-def random_sample(obs_batch, prob):
-    num_batches = obs_batch.size()[0]
-    permutation = torch.randperm(num_batches, device=obs_batch.device)
-    start = 0
-    end = int(prob * num_batches)
-    indices = permutation[start:end]
-    return torch.index_select(obs_batch, 0, indices)
-
 def mean_list(val):
     return torch.mean(torch.stack(val))
 
-def apply_masks(losses, mask=None):
-    sum_mask = None
-    if mask is not None:
-        mask = mask.unsqueeze(1)
-        sum_mask = mask.numel()#
-        #sum_mask = mask.sum()
-        res_losses = [(l * mask).sum() / sum_mask for l in losses]
-    else:
-        res_losses = [torch.mean(l) for l in losses]
-    
-    return res_losses, sum_mask
-
-def normalization_with_masks(values, masks):
-    if masks is None:
-        return (values - values.mean()) / (values.std() + 1e-8)
-
-    values_mean, values_var = get_mean_var_with_masks(values, masks)
-    values_std = torch.sqrt(values_var)
-    normalized_values = (values - values_mean) / (values_std + 1e-8)
-
-    return normalized_values
-
-def get_mean_var_with_masks(values, masks):
-    sum_mask = masks.sum()
-    values_mask = values * masks
-    values_mean = values_mask.sum() / sum_mask
-    min_sqr = ((((values_mask)**2)/sum_mask).sum() - ((values_mask/sum_mask).sum())**2)
-    values_var = min_sqr * sum_mask / (sum_mask-1)
-    return values_mean, values_var
-
-def explained_variance(y_pred,y, masks=None):
-    """
-    Computes fraction of variance that ypred explains about y.
-    Returns 1 - Var[y-ypred] / Var[y]
-    interpretation:
-        ev=0  =>  might as well have predicted zero
-        ev=1  =>  perfect prediction
-        ev<0  =>  worse than just predicting zero
-    """
-
-    if masks is not None:
-        masks = masks.unsqueeze(1)
-        _, var_y = get_mean_var_with_masks(y_pred,masks)
-        _, var_dy = get_mean_var_with_masks(y-y_pred, masks)
-    else:
-        var_y = torch.var(y)
-        var_dy = torch.var(y-y_pred)
-    return 1.0 - var_dy/var_y
-
-def policy_clip_fraction(new_neglogp, old_neglogp, clip_param, masks=None):
-    logratio = old_neglogp - new_neglogp
-    clip_frac = torch.logical_or(
-                logratio < math.log(1.0 - clip_param),
-                logratio > math.log(1.0 + clip_param),
-            ).float()
-    if masks is not None:
-        clip_frac = clip_frac * masks/masks.sum()
-    else:
-        clip_frac = clip_frac.mean()
-    return clip_frac
-    
-class CoordConv2d(nn.Conv2d):
-    pool = {}
-    def __init__(self, in_channels, out_channels, kernel_size, stride=1,
-                 padding=0, dilation=1, groups=1, bias=True):
-        super().__init__(in_channels + 2, out_channels, kernel_size, stride,
-                         padding, dilation, groups, bias)
-    @staticmethod
-    def get_coord(x):
-        key = int(x.size(0)), int(x.size(2)), int(x.size(3)), x.type()
-        if key not in CoordConv2d.pool:
-            theta = torch.Tensor([[[1, 0, 0], [0, 1, 0]]])
-            coord = torch.nn.functional.affine_grid(theta, torch.Size([1, 1, x.size(2), x.size(3)])).permute([0, 3, 1, 2]).repeat(
-                x.size(0), 1, 1, 1).type_as(x)
-            CoordConv2d.pool[key] = coord
-        return CoordConv2d.pool[key]
-    def forward(self, x):
-        return torch.nn.functional.conv2d(torch.cat([x, self.get_coord(x).type_as(x)], 1), self.weight, self.bias, self.stride,
-                        self.padding, self.dilation, self.groups)
-
-class LayerNorm2d(nn.Module):
-    """
-    Layer norm the just works on the channel axis for a Conv2d
-    Ref:
-    - code modified from https://github.com/Scitator/Run-Skeleton-Run/blob/master/common/modules/LayerNorm.py
-    - paper: https://arxiv.org/abs/1607.06450
-    Usage:
-        ln = LayerNormConv(3)
-        x = Variable(torch.rand((1,3,4,2)))
-        ln(x).size()
-    """
-
-    def __init__(self, features, eps=1e-6):
-        super().__init__()
-        self.register_buffer("gamma", torch.ones(features).unsqueeze(-1).unsqueeze(-1))
-        self.register_buffer("beta", torch.ones(features).unsqueeze(-1).unsqueeze(-1))
-
-        self.eps = eps
-        self.features = features
-
-    def _check_input_dim(self, input):
-        if input.size(1) != self.gamma.nelement():
-            raise ValueError('got {}-feature tensor, expected {}'
-                             .format(input.size(1), self.features))
-
-    def forward(self, x):
-        self._check_input_dim(x)
-        x_flat = x.transpose(1,-1).contiguous().view((-1, x.size(1)))
-        mean = x_flat.mean(0).unsqueeze(-1).unsqueeze(-1).expand_as(x)
-        std = x_flat.std(0).unsqueeze(-1).unsqueeze(-1).expand_as(x)
-        return self.gamma.expand_as(x) * (x - mean) / (std + self.eps) + self.beta.expand_as(x)
-
-
-
-class DiscreteActionsEncoder(nn.Module):
-    def __init__(self, actions_max, mlp_out, emb_size, num_agents, use_embedding):
-        super().__init__()
-        self.actions_max = actions_max
-        self.emb_size = emb_size
-        self.num_agents = num_agents
-        self.use_embedding = use_embedding
-        if use_embedding:
-            self.embedding = torch.nn.Embedding(actions_max, emb_size)
-        else:
-            self.emb_size = actions_max
-        
-        self.linear = torch.nn.Linear(self.emb_size * num_agents, mlp_out)
-
-    def forward(self, discrete_actions):
-        if self.use_embedding:
-            emb = self.embedding(discrete_actions)
-        else:
-            emb = torch.nn.functional.one_hot(discrete_actions, num_classes=self.actions_max)
-        emb = emb.view( -1, self.emb_size * self.num_agents).float()
-        emb = self.linear(emb)
-        return emb
-
-def get_model_gradients(model):
-    grad_list = []
-    for param in model.parameters():
-        grad_list.append(param.grad)
-    return grad_list
-
-def get_mean(v):
-    if len(v) > 0:
-        mean = np.mean(v)
-    else:
-        mean = 0
-    return mean
-
-
-class CategoricalMaskedNaive(torch.distributions.Categorical):
-    def __init__(self, probs=None, logits=None, validate_args=None, masks=None):
-        self.masks = masks
-        if self.masks is None:
-            super(CategoricalMasked, self).__init__(probs, logits, validate_args)
-        else:
-            inf_mask = torch.log(masks.float())
-            logits = logits + inf_mask
-            super(CategoricalMasked, self).__init__(probs, logits, validate_args)
-    
-    def entropy(self):
-        if self.masks is None:
-            return super(CategoricalMasked, self).entropy()
-        p_log_p = self.logits * self.probs
-        p_log_p[p_log_p != p_log_p] = 0
-        return -p_log_p.sum(-1)
-
-
-class CategoricalMasked(torch.distributions.Categorical):
-    def __init__(self, probs=None, logits=None, validate_args=None, masks=None):
-        self.masks = masks
-        if masks is None:
-            super(CategoricalMasked, self).__init__(probs, logits, validate_args)
-        else:
-            self.device = self.masks.device
-            logits = torch.where(self.masks, logits, torch.tensor(-1e+8).to(self.device))
-            super(CategoricalMasked, self).__init__(probs, logits, validate_args)
-    
-    def rsample(self):
-        u = torch.distributions.Uniform(low=torch.zeros_like(self.logits, device = self.logits.device), high=torch.ones_like(self.logits, device = self.logits.device)).sample()
-        #print(u.size(), self.logits.size())
-        rand_logits = self.logits -(-u.log()).log()
-        return torch.max(rand_logits, axis=-1)[1]
-
-    def entropy(self):
-        if self.masks is None:
-            return super(CategoricalMasked, self).entropy()
-        p_log_p = self.logits * self.probs
-        p_log_p = torch.where(self.masks, p_log_p, torch.tensor(0.0).to(self.device))
-        return -p_log_p.sum(-1)
 
 class AverageMeter(nn.Module):
     def __init__(self, in_shape, max_size):
         super(AverageMeter, self).__init__()
         self.max_size = max_size
         self.current_size = 0
-        self.register_buffer("mean", torch.zeros(in_shape, dtype = torch.float32))
+        self.register_buffer("mean", torch.zeros(in_shape, dtype=torch.float32))
 
     def update(self, values):
         size = values.size()[0]
@@ -348,13 +169,159 @@ class AverageMeter(nn.Module):
         return self.mean.squeeze(0).cpu().numpy()
 
 
-class IdentityRNN(nn.Module):
-    def __init__(self, in_shape, out_shape):
-        super(IdentityRNN, self).__init__()
-        assert(in_shape == out_shape)
-        self.identity = torch.nn.Identity()
+########################################################################
 
-    def forward(self, x, h):
-        return self.identity(x), h
 
- 
+class RunningMeanStd(nn.Module):
+    def __init__(self, insize, epsilon=1e-05, per_channel=False, norm_only=False):
+        super(RunningMeanStd, self).__init__()
+        print("RunningMeanStd: ", insize)
+        self.insize = insize
+        self.epsilon = epsilon
+
+        self.norm_only = norm_only
+        self.per_channel = per_channel
+        if per_channel:
+            if len(self.insize) == 3:
+                self.axis = [0, 2, 3]
+            if len(self.insize) == 2:
+                self.axis = [0, 2]
+            if len(self.insize) == 1:
+                self.axis = [0]
+            in_size = self.insize[0]
+        else:
+            self.axis = [0]
+            in_size = insize
+
+        self.register_buffer("running_mean", torch.zeros(in_size, dtype=torch.float64))
+        self.register_buffer("running_var", torch.ones(in_size, dtype=torch.float64))
+        self.register_buffer("count", torch.ones((), dtype=torch.float64))
+
+    def _update_mean_var_count_from_moments(
+        self, mean, var, count, batch_mean, batch_var, batch_count
+    ):
+        delta = batch_mean - mean
+        tot_count = count + batch_count
+
+        new_mean = mean + delta * batch_count / tot_count
+        m_a = var * count
+        m_b = batch_var * batch_count
+        M2 = m_a + m_b + delta**2 * count * batch_count / tot_count
+        new_var = M2 / tot_count
+        new_count = tot_count
+        return new_mean, new_var, new_count
+
+    def forward(self, input, unnorm=False, mask=None):
+        if self.training:
+            if mask is not None:
+                pass
+                # mean, var = torch_ext.get_mean_std_with_masks(input, mask)
+            else:
+                mean = input.mean(self.axis)  # along channel axis
+                var = input.var(self.axis)
+            (
+                self.running_mean,
+                self.running_var,
+                self.count,
+            ) = self._update_mean_var_count_from_moments(
+                self.running_mean,
+                self.running_var,
+                self.count,
+                mean,
+                var,
+                input.size()[0],
+            )
+
+        # change shape
+        if self.per_channel:
+            if len(self.insize) == 3:
+                current_mean = self.running_mean.view(
+                    [1, self.insize[0], 1, 1]
+                ).expand_as(input)
+                current_var = self.running_var.view(
+                    [1, self.insize[0], 1, 1]
+                ).expand_as(input)
+            if len(self.insize) == 2:
+                current_mean = self.running_mean.view([1, self.insize[0], 1]).expand_as(
+                    input
+                )
+                current_var = self.running_var.view([1, self.insize[0], 1]).expand_as(
+                    input
+                )
+            if len(self.insize) == 1:
+                current_mean = self.running_mean.view([1, self.insize[0]]).expand_as(
+                    input
+                )
+                current_var = self.running_var.view([1, self.insize[0]]).expand_as(
+                    input
+                )
+        else:
+            current_mean = self.running_mean
+            current_var = self.running_var
+        # get output
+
+        if unnorm:
+            y = torch.clamp(input, min=-5.0, max=5.0)
+            y = (
+                torch.sqrt(current_var.float() + self.epsilon) * y
+                + current_mean.float()
+            )
+        else:
+            if self.norm_only:
+                y = input / torch.sqrt(current_var.float() + self.epsilon)
+            else:
+                y = (input - current_mean.float()) / torch.sqrt(
+                    current_var.float() + self.epsilon
+                )
+                y = torch.clamp(y, min=-5.0, max=5.0)
+        return y
+
+
+class TanhTransform(pyd.transforms.Transform):
+    domain = pyd.constraints.real
+    codomain = pyd.constraints.interval(-1.0, 1.0)
+    bijective = True
+    sign = +1
+
+    def __init__(self, cache_size=1):
+        super().__init__(cache_size=cache_size)
+
+    @staticmethod
+    def atanh(x):
+        return 0.5 * (x.log1p() - (-x).log1p())
+
+    def __eq__(self, other):
+        return isinstance(other, TanhTransform)
+
+    def _call(self, x):
+        return x.tanh()
+
+    def _inverse(self, y):
+        # We do not clamp to the boundary here as it may degrade the performance of certain algorithms.
+        # one should use `cache_size=1` instead
+        return self.atanh(y)
+
+    def log_abs_det_jacobian(self, x, y):
+        # We use a formula that is more numerically stable, see details in the following link
+        # https://github.com/tensorflow/probability/commit/ef6bb176e0ebd1cf6e25c6b5cecdd2428c22963f#diff-e120f70e92e6741bca649f04fcd907b7
+        return 2.0 * (math.log(2.0) - x - F.softplus(-2.0 * x))
+
+
+class SquashedNormal(pyd.transformed_distribution.TransformedDistribution):
+    def __init__(self, loc, scale):
+        self.loc = loc
+        self.scale = scale
+
+        self.base_dist = pyd.Normal(loc, scale)
+        transforms = [TanhTransform()]
+        super().__init__(self.base_dist, transforms)
+
+    @property
+    def mean(self):
+        mu = self.loc
+        for tr in self.transforms:
+            mu = tr(mu)
+        return mu
+
+    def entropy(self):
+        return self.base_dist.entropy()

@@ -97,6 +97,8 @@ class SAC_Agent:
             "normalize_input": self.normalize_input,
             "normalize_input": self.normalize_input,
         }
+
+        # self.model = sac_model.Network(params["network"], net_config)
         self.model = self.network.build(net_config)
         self.model.to(self._device)
 
@@ -142,9 +144,6 @@ class SAC_Agent:
         )
 
     def load_networks(self, params):
-        # builder = model_builder.ModelBuilder()
-        # self.config["network"] = builder.load(params)
-
         self.config["network"] = sac_model.ModelSACContinuous(params=params["network"])
 
     def base_init(self, base_name, args, config):
@@ -212,12 +211,6 @@ class SAC_Agent:
         self.play_time = 0
         self.epoch_num = 0
 
-        # TODO: put it into the separate class
-        pbt_str = ""
-        self.population_based_training = config.get("population_based_training", False)
-        if self.population_based_training:
-            # in PBT, make sure experiment name contains a unique id of the policy within a population
-            pbt_str = f'_pbt_{config["pbt_idx"]:02d}'
         full_experiment_name = config.get("full_experiment_name", None)
         if full_experiment_name:
             print(
@@ -225,8 +218,8 @@ class SAC_Agent:
             )
             self.experiment_name = full_experiment_name
         else:
-            self.experiment_name = (
-                config["name"] + pbt_str + datetime.now().strftime("_%d-%H-%M-%S")
+            self.experiment_name = config["name"] + datetime.now().strftime(
+                "_%d-%H-%M-%S"
             )
         self.train_dir = config.get("train_dir", "runs")
 
@@ -249,7 +242,7 @@ class SAC_Agent:
             "Run Directory:", config["name"] + datetime.now().strftime("_%d-%H-%M-%S")
         )
 
-        self.is_tensor_obses = False
+        self.is_tensor_obses = True
         self.is_rnn = False
         self.last_rnn_indices = None
         self.last_state_indices = None
@@ -435,34 +428,11 @@ class SAC_Agent:
 
     # todo: move to common utils
     def obs_to_tensors(self, obs):
-        obs_is_dict = isinstance(obs, dict)
-        if obs_is_dict:
-            upd_obs = {}
-            for key, value in obs.items():
-                upd_obs[key] = self._obs_to_tensors_internal(value)
-        else:
-            upd_obs = self.cast_obs(obs)
-        if not obs_is_dict or "obs" not in obs:
-            upd_obs = {"obs": upd_obs}
+        upd_obs = self.cast_obs(obs)
+        upd_obs = {"obs": upd_obs}
         return upd_obs
-
-    def _obs_to_tensors_internal(self, obs):
-        if isinstance(obs, dict):
-            upd_obs = {}
-            for key, value in obs.items():
-                upd_obs[key] = self._obs_to_tensors_internal(value)
-        else:
-            upd_obs = self.cast_obs(obs)
-        return upd_obs
-
-    def preprocess_actions(self, actions):
-        if not self.is_tensor_obses:
-            actions = actions.cpu().numpy()
-        return actions
 
     def env_step(self, actions):
-        actions = self.preprocess_actions(actions)
-
         # obs, rewards, dones, infos = self.vec_env.step(
         #     actions
         # )  # (obs_space) -> (n, obs_space)
@@ -518,12 +488,6 @@ class SAC_Agent:
         if alpha_losses is not None:
             alphas.append(alpha)
             alpha_losses.append(alpha_loss)
-
-    def clear_stats(self):
-        self.game_rewards.clear()
-        self.game_lengths.clear()
-        self.mean_rewards = self.last_mean_rewards = -100500
-        # self.algo_observer.after_clear_stats()
 
     def play_steps(self, random_exploration=False):
         total_time_start = time.time()
