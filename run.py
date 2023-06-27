@@ -37,9 +37,9 @@ def parse_args():
         help="total timesteps of the experiments")
     parser.add_argument("--learning-rate", type=float, default=0.0026,
         help="the learning rate of the optimizer")
-    parser.add_argument("--num-envs", type=int, default=1024,
+    parser.add_argument("--num-envs", type=int, default=512,
         help="the number of parallel game environments")
-    parser.add_argument("--num-steps", type=int, default=8,
+    parser.add_argument("--num-steps", type=int, default=16,
         help="the number of steps to run in each environment per policy rollout")
     parser.add_argument("--anneal-lr", type=lambda x: bool(strtobool(x)), default=True, nargs="?", const=True,
         help="Toggle learning rate annealing for policy and value networks")
@@ -122,13 +122,13 @@ SAC_params = {
         "gamma": 0.99,
         "init_alpha": 1.0,
         "learnable_temperature": True,
-        "max_epochs": 2000,
+        "max_epochs": 4000,
         "multi_gpu": False,
         "name": args.env_id,
         "normalize_input": True,
-        "num_actors": args.num_envs,
+        "num_actors": args.num_envs,  # 512 works
         "num_seed_steps": 5,
-        "num_steps_per_episode": 8,
+        "num_steps_per_episode": 16,
         "num_warmup_steps": 10,
         "replay_buffer_size": 1000000,
         "reward_shaper": {"scale_value": 1.0},
